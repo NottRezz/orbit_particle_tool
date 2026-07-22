@@ -41,3 +41,38 @@ export interface ParticleEntry {
   fx: string
   custom?: boolean
 }
+
+export interface AnimState {
+  dict: string
+  anim: string
+  blendIn: number
+  blendOut: number
+  duration: number   // ms, -1 = infinite
+  flags: number      // TaskPlayAnim bitmask
+  playbackRate: number
+}
+
+export interface AnimEntry {
+  dict: string
+  anim: string
+  custom?: boolean
+}
+
+export interface VictimConfig {
+  model: string
+  offsetX: number   // right of player
+  offsetY: number   // forward of player
+  offsetZ: number   // up from player
+  heading: number   // degrees, relative to player heading
+}
+
+export interface PropSlot {
+  id: string
+  model: string
+  bone: number
+  boneName: string
+  offset: Vec3
+  rotation: Vec3
+  visible: boolean
+  groupId: string | null
+}

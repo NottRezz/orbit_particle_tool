@@ -8,41 +8,36 @@
       <input
         v-model="q"
         class="browser__search"
-        placeholder="Search particles…"
+        placeholder="Search animations…"
         @keydown.escape="q = ''"
       />
       <button v-if="q" class="browser__clear" @click="q = ''">✕</button>
+      <span class="browser__target" :class="{ 'browser__target--victim': store.activeTarget === 'victim' }">
+        → {{ store.activeTarget === 'victim' ? 'Victim' : 'Player' }}
+      </span>
     </div>
 
-    <!-- particle tree -->
-    <div class="browser__list" ref="listRef">
+    <!-- animation tree -->
+    <div class="browser__list">
       <template v-if="q">
-        <!-- flat search results -->
         <template v-if="searchResults.length">
-          <div v-for="entry in searchResults" :key="entry.dict + entry.fx" class="browser__fx"
-            :class="{ 'browser__fx--selected': isSelected(entry) }"
-            @dblclick="add(entry.dict, entry.fx)"
-            @click="preview(entry)"
-            :title="`${entry.dict} / ${entry.fx} — double-click to add`"
+          <div
+            v-for="entry in searchResults" :key="entry.dict + entry.anim"
+            class="browser__fx"
+            :class="{ 'browser__fx--selected': isActive(entry) }"
+            @click="select(entry.dict, entry.anim)"
+            :title="`${entry.dict} / ${entry.anim}`"
           >
             <div class="browser__fx-info">
               <span class="browser__fx-dict">{{ entry.dict }}</span>
-              <span class="browser__fx-name" v-html="highlight(entry.fx, q)" />
+              <span class="browser__fx-name" v-html="highlight(entry.anim, q)" />
             </div>
-            <button class="browser__eye" :class="{ 'browser__eye--active': isPreviewActive(entry) }"
-              @click.stop="togglePreview(entry)" title="Preview particle">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-            </button>
           </div>
         </template>
         <div v-else class="browser__empty">No results for "{{ q }}"</div>
       </template>
 
       <template v-else>
-        <!-- grouped tree -->
         <div v-for="group in groups" :key="group.dict" class="browser__group">
           <button class="browser__dict" @click="toggleGroup(group.dict)">
             <svg class="browser__arrow" :class="{ 'browser__arrow--open': isOpen(group.dict) }"
@@ -50,34 +45,26 @@
               <path d="M2 3l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
             <span>{{ group.dict }}</span>
-            <span class="browser__count">{{ group.fxList.length }}</span>
+            <span class="browser__count">{{ group.animList.length }}</span>
             <span v-if="group.custom" class="browser__badge">CUSTOM</span>
             <button
               v-if="group.custom"
               class="browser__dict-rm"
-              @click.stop="emit('removeCustomDict', group.dict)"
+              @click.stop="$emit('removeCustomDict', group.dict)"
               title="Remove custom dictionary"
             >✕</button>
           </button>
 
           <div v-if="isOpen(group.dict)" class="browser__fxlist">
             <div
-              v-for="fx in group.fxList"
-              :key="fx"
+              v-for="anim in group.animList"
+              :key="anim"
               class="browser__fx"
-              :class="{ 'browser__fx--selected': isSelected({ dict: group.dict, fx }) }"
-              @dblclick="add(group.dict, fx)"
-              @click="preview({ dict: group.dict, fx })"
-              :title="`${group.dict} / ${fx} — double-click to add`"
+              :class="{ 'browser__fx--selected': isActive({ dict: group.dict, anim }) }"
+              @click="select(group.dict, anim)"
+              :title="`${group.dict} / ${anim}`"
             >
-              <span class="browser__fx-text">{{ fx }}</span>
-              <button class="browser__eye" :class="{ 'browser__eye--active': isPreviewActive({ dict: group.dict, fx }) }"
-                @click.stop="togglePreview({ dict: group.dict, fx })" title="Preview particle">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </button>
+              <span class="browser__fx-text">{{ anim }}</span>
             </div>
           </div>
         </div>
@@ -97,53 +84,47 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onUnmounted } from 'vue'
-import DefaultParticles from '../particles.json'
-import { useParticleStore } from '../store/useParticleStore'
-import { api } from '../plugins/axios.plugin'
+import { ref, computed } from 'vue'
+import DefaultAnims from '../anims.json'
+import { useAnimStore } from '../store/useAnimStore'
 
 const props = defineProps<{
   customDicts: Record<string, string[]>
 }>()
 
-const emit = defineEmits<{
+defineEmits<{
   (e: 'openCustomDict'): void
   (e: 'removeCustomDict', dict: string): void
 }>()
 
-const store = useParticleStore()
+const store = useAnimStore()
 const q = ref('')
 const openGroups = ref<Set<string>>(new Set())
-const lastPreview = ref<{ dict: string; fx: string } | null>(null)
 
-// ── data ──────────────────────────────────────────────────────
-
-interface Group { dict: string; fxList: string[]; custom: boolean }
+interface Group { dict: string; animList: string[]; custom: boolean }
 
 const groups = computed<Group[]>(() => {
-  const defaults: Group[] = Object.entries(DefaultParticles as Record<string, string[]>)
-    .map(([dict, fxList]) => ({ dict, fxList, custom: false }))
+  const defaults: Group[] = Object.entries(DefaultAnims as Record<string, string[]>)
+    .map(([dict, animList]) => ({ dict, animList, custom: false }))
   const customs: Group[] = Object.entries(props.customDicts)
-    .map(([dict, fxList]) => ({ dict, fxList, custom: true }))
+    .map(([dict, animList]) => ({ dict, animList, custom: true }))
   return [...customs, ...defaults]
 })
 
-interface FlatEntry { dict: string; fx: string }
+interface FlatEntry { dict: string; anim: string }
 
 const searchResults = computed<FlatEntry[]>(() => {
   const lower = q.value.toLowerCase()
   const results: FlatEntry[] = []
   for (const g of groups.value) {
-    for (const fx of g.fxList) {
-      if (fx.toLowerCase().includes(lower) || g.dict.toLowerCase().includes(lower)) {
-        results.push({ dict: g.dict, fx })
+    for (const anim of g.animList) {
+      if (anim.toLowerCase().includes(lower) || g.dict.toLowerCase().includes(lower)) {
+        results.push({ dict: g.dict, anim })
       }
     }
   }
   return results.slice(0, 120)
 })
-
-// ── interactions ──────────────────────────────────────────────
 
 function toggleGroup(dict: string) {
   if (openGroups.value.has(dict)) openGroups.value.delete(dict)
@@ -152,16 +133,12 @@ function toggleGroup(dict: string) {
 
 function isOpen(dict: string) { return openGroups.value.has(dict) }
 
-function preview(entry: { dict: string; fx: string }) {
-  lastPreview.value = entry
+function isActive(entry: { dict: string; anim: string }) {
+  return store.state?.dict === entry.dict && store.state?.anim === entry.anim
 }
 
-function add(dict: string, fx: string) {
-  store.addSlot(dict, fx)
-}
-
-function isSelected(entry: { dict: string; fx: string }) {
-  return lastPreview.value?.dict === entry.dict && lastPreview.value?.fx === entry.fx
+function select(dict: string, anim: string) {
+  store.setAnim(dict, anim)
 }
 
 function highlight(text: string, query: string): string {
@@ -169,42 +146,6 @@ function highlight(text: string, query: string): string {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>')
 }
-
-// ── preview ───────────────────────────────────────────────────
-
-const previewingKey = ref<string | null>(null)
-let previewTimer = 0
-
-function previewKey(entry: { dict: string; fx: string }) {
-  return `${entry.dict}:${entry.fx}`
-}
-
-function isPreviewActive(entry: { dict: string; fx: string }) {
-  return previewingKey.value === previewKey(entry)
-}
-
-function togglePreview(entry: { dict: string; fx: string }) {
-  const key = previewKey(entry)
-  clearTimeout(previewTimer)
-
-  if (previewingKey.value === key) {
-    previewingKey.value = null
-    api.post('STOP_PREVIEW', {})
-    return
-  }
-
-  previewingKey.value = key
-  api.post('PREVIEW_PARTICLE', { dict: entry.dict, fx: entry.fx })
-  previewTimer = window.setTimeout(() => {
-    if (previewingKey.value === key) previewingKey.value = null
-  }, 3200)
-}
-
-function onMessage(e: MessageEvent) {
-  if (e.data?.event === 'PREVIEW_STOPPED') previewingKey.value = null
-}
-window.addEventListener('message', onMessage)
-onUnmounted(() => window.removeEventListener('message', onMessage))
 </script>
 
 <style lang="scss" scoped>
@@ -250,6 +191,27 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
     &:hover { color: #aaa; }
   }
 
+  &__target {
+    flex-shrink: 0;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: #a78bfa;
+    background: rgba(124,93,249,0.12);
+    border: 1px solid rgba(124,93,249,0.2);
+    white-space: nowrap;
+    transition: all 0.15s;
+
+    &--victim {
+      color: #7dd3fc;
+      background: rgba(56,189,248,0.12);
+      border-color: rgba(56,189,248,0.2);
+    }
+  }
+
   &__list {
     flex: 1;
     overflow-y: auto;
@@ -262,9 +224,6 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
     color: #555;
     text-align: center;
   }
-
-  // dict group header
-  &__group { }
 
   &__dict {
     width: 100%;
@@ -291,8 +250,8 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
     color: #555;
     flex-shrink: 0;
     transition: transform 0.15s;
-    &--open { transform: rotate(0deg); }
     transform: rotate(-90deg);
+    &--open { transform: rotate(0deg); }
   }
 
   &__count {
@@ -321,8 +280,8 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
 
   &__badge {
     font-size: 9px;
-    background: rgba(124,93,249,0.2);
-    color: #a78bfa;
+    background: rgba(56,189,248,0.15);
+    color: #7dd3fc;
     border-radius: 3px;
     padding: 1px 4px;
     letter-spacing: 0.06em;
@@ -350,12 +309,11 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
     &:hover {
       background: rgba(255,255,255,0.05);
       color: #ccc;
-      .browser__eye { opacity: 1; }
     }
 
     &--selected {
-      background: rgba(124,93,249,0.12);
-      color: #a78bfa;
+      background: rgba(56,189,248,0.1);
+      color: #7dd3fc;
     }
   }
 
@@ -366,7 +324,6 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
     white-space: nowrap;
   }
 
-  // search result two-line layout
   &__fx-info {
     flex: 1;
     display: flex;
@@ -390,32 +347,10 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
     overflow: hidden;
     text-overflow: ellipsis;
     :deep(mark) {
-      background: rgba(124,93,249,0.35);
-      color: #c4b5fd;
+      background: rgba(56,189,248,0.25);
+      color: #7dd3fc;
       border-radius: 2px;
       padding: 0 1px;
-    }
-  }
-
-  // eye / preview button
-  &__eye {
-    background: none;
-    border: none;
-    color: #444;
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 3px;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    opacity: 0;
-    transition: color 0.1s, opacity 0.1s;
-
-    &:hover { color: #a78bfa; }
-
-    &--active {
-      opacity: 1 !important;
-      color: #7c5df9;
     }
   }
 
@@ -431,10 +366,10 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
     align-items: center;
     justify-content: center;
     gap: 6px;
-    background: rgba(124,93,249,0.08);
-    border: 1px dashed rgba(124,93,249,0.25);
+    background: rgba(56,189,248,0.06);
+    border: 1px dashed rgba(56,189,248,0.2);
     border-radius: 6px;
-    color: #7c5df9;
+    color: #38bdf8;
     font-size: 11px;
     font-weight: 500;
     padding: 7px;
@@ -442,9 +377,9 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
     transition: all 0.15s;
 
     &:hover {
-      background: rgba(124,93,249,0.15);
-      border-color: rgba(124,93,249,0.5);
-      color: #a78bfa;
+      background: rgba(56,189,248,0.12);
+      border-color: rgba(56,189,248,0.4);
+      color: #7dd3fc;
     }
   }
 }

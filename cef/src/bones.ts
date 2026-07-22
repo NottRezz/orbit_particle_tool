@@ -9,6 +9,8 @@ export const BONES: BoneDef[] = [
   { id: 24818, name: 'SKEL_Spine3',       label: 'Spine 3' },
   { id: 39317, name: 'SKEL_Neck_1',       label: 'Neck' },
   { id: 31086, name: 'SKEL_Head',         label: 'Head' },
+  { id: 25260, name: 'FB_L_Eye_000',      label: 'L Eye' },
+  { id: 27474, name: 'FB_R_Eye_000',      label: 'R Eye' },
   { id: 64729, name: 'SKEL_L_Clavicle',   label: 'L Clavicle' },
   { id: 10706, name: 'SKEL_R_Clavicle',   label: 'R Clavicle' },
   { id: 45509, name: 'SKEL_L_UpperArm',   label: 'L Upper Arm' },

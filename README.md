@@ -10,7 +10,7 @@ A FiveM developer tool for building, previewing, and fine-tuning GTA V looped pa
 - **Live editing** — adjust scale, color, alpha, offset, rotation, and bone without restarting the effect
 - **Evolution parameters** — set named evolution keys per slot (e.g. `brightness`, `speed`, `size`)
 - **3-second floating preview** — audition any effect in front of your ped before committing it to a slot
-- **Custom dictionaries** — add particle dictionaries and effect lists beyond the 278 built-in ones
+- **Custom dictionaries** — add particle` dictionaries and effect lists beyond the 278 built-in ones
 - **Transparent NUI** — panel opens/closes on demand; idle camera is suppressed while open
 
 ---
